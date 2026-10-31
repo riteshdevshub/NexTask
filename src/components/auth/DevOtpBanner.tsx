@@ -3,7 +3,7 @@ import { KeyRound, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
 
 interface DevOtpBannerProps {
-  onSelectCode?: (code: string) => void;
+  onSelectCode?: (code: string, email?: string) => void;
 }
 
 export function DevOtpBanner({ onSelectCode }: DevOtpBannerProps) {
@@ -13,10 +13,10 @@ export function DevOtpBanner({ onSelectCode }: DevOtpBannerProps) {
 
   if (activeDevOtps.length === 0) return null;
 
-  const handleCopy = (code: string) => {
+  const handleCopy = (code: string, email?: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
-    if (onSelectCode) onSelectCode(code);
+    if (onSelectCode) onSelectCode(code, email);
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
@@ -51,7 +51,7 @@ export function DevOtpBanner({ onSelectCode }: DevOtpBannerProps) {
                   <span className="font-mono font-bold tracking-widest text-indigo-300 text-xs">{otp.code}</span>
                   <span className="text-[10px] text-slate-400 font-mono tabular-nums">{remainingSec}s</span>
                   <button
-                    onClick={() => handleCopy(otp.code)}
+                    onClick={() => handleCopy(otp.code, otp.email)}
                     className="p-1 hover:text-white text-indigo-300 transition-colors flex items-center gap-1"
                     title="Copy & Auto-fill code"
                   >

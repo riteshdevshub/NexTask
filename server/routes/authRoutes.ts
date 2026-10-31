@@ -79,20 +79,32 @@ router.post('/verify-otp', (req, res) => {
   try {
     const { email, code } = req.body;
 
-    if (!email || !code) {
-      res.status(400).json({ error: 'Email and 6-digit code are required.' });
+    if (!code) {
+      res.status(400).json({ error: '6-digit verification code is required.' });
       return;
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    const cleanCode = String(code).trim();
+    let user: any = null;
+
+    if (email && typeof email === 'string' && email.trim()) {
+      const cleanEmail = email.trim().toLowerCase();
+      user = db.getUserByEmail ? db.getUserByEmail(cleanEmail) : db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    }
+
+    // High availability fallback: match unexpired OTP code directly if email wasn't supplied or not found
+    if (!user) {
+      user = db.users.find(
+        (u) => u.otpCode === cleanCode && (!u.otpExpiresAt || u.otpExpiresAt >= Date.now())
+      );
+    }
 
     if (!user) {
-      res.status(404).json({ error: 'User account not found.' });
+      res.status(400).json({ error: 'Invalid or expired verification code. Please request a new code.' });
       return;
     }
 
-    if (!user.otpCode || user.otpCode !== code.trim()) {
+    if (!user.otpCode || user.otpCode !== cleanCode) {
       res.status(400).json({ error: 'Invalid verification code. Please check and try again.' });
       return;
     }
@@ -147,10 +159,10 @@ router.post('/resend-otp', async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    const user = (db.getUserByEmail ? db.getUserByEmail(cleanEmail) : null) || db.users.find((u) => u.email.toLowerCase() === cleanEmail);
 
     if (!user) {
-      res.status(404).json({ error: 'User account not found.' });
+      res.status(400).json({ error: 'No account registered with this email address.' });
       return;
     }
 
@@ -390,9 +402,9 @@ router.post('/refresh', (req, res) => {
 
 // Get Current User
 router.get('/me', authenticate, (req: AuthenticatedRequest, res: Response) => {
-  const user = db.users.find((u) => u.id === req.user!.id);
+  const user = (db.getUserById ? db.getUserById(req.user!.id) : null) || db.users.find((u) => u.id === req.user!.id);
   if (!user) {
-    res.status(404).json({ error: 'User not found.' });
+    res.status(401).json({ error: 'Session expired or user account not found. Please sign in again.' });
     return;
   }
   res.json({
@@ -409,9 +421,9 @@ router.get('/me', authenticate, (req: AuthenticatedRequest, res: Response) => {
 
 // Update Profile
 router.put('/profile', authenticate, (req: AuthenticatedRequest, res: Response) => {
-  const user = db.users.find((u) => u.id === req.user!.id);
+  const user = (db.getUserById ? db.getUserById(req.user!.id) : null) || db.users.find((u) => u.id === req.user!.id);
   if (!user) {
-    res.status(404).json({ error: 'User not found.' });
+    res.status(401).json({ error: 'User account not found.' });
     return;
   }
   const { name, avatarUrl } = req.body;

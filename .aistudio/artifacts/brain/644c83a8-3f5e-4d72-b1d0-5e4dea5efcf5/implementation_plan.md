@@ -9,8 +9,9 @@ Plan Smart. Work Better. A unified, high-performance productivity platform bring
 
 - **Confirmed Decision 1 (Persistence Strategy)**: NexTask will support standard MongoDB Atlas connections via `MONGODB_URI` / Mongoose, while providing an automatic, file-backed local persistence engine for immediate out-of-the-box development and testing in the preview container without external connection blocking.
 - **Confirmed Decision 2 (File Storage Provider)**: Cloudinary integration with signed direct upload and secure metadata tracking, alongside an instant inline blob/base64 preview adapter so files can be uploaded, tagged, and previewed immediately.
-- **Confirmed Decision 3 (Email OTP & Auth Mode)**: Resend API integration for delivery of 6-digit verification codes and passwordless logins, paired with a non-intrusive developer OTP modal/banner in dev mode so full auth flows can be tested end-to-end even prior to entering a `RESEND_API_KEY`.
+- **Confirmed Decision 3 (Email OTP & Auth Mode)**: Resend API integration for delivery of 6-digit verification codes and passwordless logins, paired with a non-intrusive developer OTP modal/banner in dev mode so full auth flows can be tested end-to-end even prior to entering a `RESEND_API_KEY`. Includes cross-device code fallbacks and unified error handling to support concurrent multi-device logins without 404 interruptions.
 - **Confirmed Decision 4 (Design Language)**: Linear and Notion-inspired interface adhering to strict anti-slop rules: zero decorative pill badges on cards, unboxed metadata (`·` typographic separators), tabular figures for all metrics, single-elevation surfaces, and dark/light dual-mode support via Tailwind v4 `@custom-variant dark`.
+- **Confirmed Decision 5 (High Concurrency & Multi-Device Scale)**: High-performance $O(1)$ Hash Indexing (`userById`, `userByEmail`, `taskById`, `projectById`, `noteById`, `fileById`) with atomic `.tmp` persistence, HTTP response compression via `compression`, strong ETags, and resilient token revocation handling.
 
 ---
 

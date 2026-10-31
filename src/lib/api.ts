@@ -56,13 +56,23 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
       } catch {
         tokenStorage.clear();
       }
+    } else {
+      tokenStorage.clear();
     }
+  }
+
+  // If /api/auth/me failed with 401 or 404, clear any stale tokens from other devices
+  if (endpoint === '/api/auth/me' && (response.status === 401 || response.status === 404)) {
+    tokenStorage.clear();
   }
 
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const errorMsg = data?.error || `Request failed with status ${response.status}`;
+    const errorMsg =
+      data?.error ||
+      data?.message ||
+      (response.status === 404 ? 'The requested item was not found.' : `Request failed with status ${response.status}`);
     const error: any = new Error(errorMsg);
     error.status = response.status;
     error.data = data;

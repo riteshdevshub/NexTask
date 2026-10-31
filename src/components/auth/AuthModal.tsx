@@ -11,9 +11,16 @@ interface AuthModalProps {
   onClose: () => void;
   initialView?: AuthView;
   prefillCode?: string;
+  prefillEmail?: string;
 }
 
-export function AuthModal({ isOpen, onClose, initialView = 'login', prefillCode = '' }: AuthModalProps) {
+export function AuthModal({
+  isOpen,
+  onClose,
+  initialView = 'login',
+  prefillCode = '',
+  prefillEmail = '',
+}: AuthModalProps) {
   const { login, register, passwordlessRequest, verifyOtp, resendOtp, forgotPassword, resetPassword } = useAuth();
   const { success, error } = useToast();
 
@@ -34,8 +41,16 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', prefillCode 
   useEffect(() => {
     if (prefillCode) {
       setOtpCode(prefillCode);
+      setView('otp');
     }
   }, [prefillCode]);
+
+  useEffect(() => {
+    if (prefillEmail) {
+      setEmail(prefillEmail);
+      setView('otp');
+    }
+  }, [prefillEmail]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;

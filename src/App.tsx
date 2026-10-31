@@ -25,6 +25,7 @@ function MainApp() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authPrefillCode, setAuthPrefillCode] = useState('');
+  const [authPrefillEmail, setAuthPrefillEmail] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
@@ -58,8 +59,11 @@ function MainApp() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleDevOtpSelect = (code: string) => {
+  const handleDevOtpSelect = (code: string, email?: string) => {
     setAuthPrefillCode(code);
+    if (email) {
+      setAuthPrefillEmail(email);
+    }
     setIsAuthOpen(true);
   };
 
@@ -168,9 +172,11 @@ function MainApp() {
         onClose={() => {
           setIsAuthOpen(false);
           setAuthPrefillCode('');
+          setAuthPrefillEmail('');
           fetchSharedProjects();
         }}
         prefillCode={authPrefillCode}
+        prefillEmail={authPrefillEmail}
       />
 
       <GlobalSearchModal

@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -15,6 +16,11 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
+
+// Production & high-concurrency performance tuning
+app.disable('x-powered-by');
+app.set('etag', 'strong');
+app.use(compression());
 
 // Body parsers with 50MB limit for image and file attachments
 app.use(express.json({ limit: '50mb' }));

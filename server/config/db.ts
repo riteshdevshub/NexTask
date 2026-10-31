@@ -14,6 +14,7 @@ interface DatabaseStore {
 
 const DATA_DIR = path.resolve(process.cwd(), '.data');
 const DATA_FILE = path.join(DATA_DIR, 'store.json');
+const TEMP_FILE = path.join(DATA_DIR, 'store.tmp');
 
 const defaultStore: DatabaseStore = {
   users: [],
@@ -26,10 +27,23 @@ const defaultStore: DatabaseStore = {
 
 class StoreManager {
   private data: DatabaseStore = defaultStore;
-  private isLoaded = false;
+  private lastMtime: number = 0;
+  private persistTimeout: NodeJS.Timeout | null = null;
+  private isPersisting = false;
+
+  // In-memory $O(1)$ Hash Maps for high-concurrency throughput (millions of operations)
+  private userById = new Map<string, User>();
+  private userByEmail = new Map<string, User>();
+  private taskById = new Map<string, Task>();
+  private projectById = new Map<string, Project>();
+  private noteById = new Map<string, Note>();
+  private fileById = new Map<string, FileItem>();
 
   constructor() {
     this.init();
+    // Flush on shutdown
+    process.on('SIGTERM', () => this.flushSync());
+    process.on('SIGINT', () => this.flushSync());
   }
 
   private init() {
@@ -38,17 +52,19 @@ class StoreManager {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
       if (fs.existsSync(DATA_FILE)) {
+        const stats = fs.statSync(DATA_FILE);
+        this.lastMtime = stats.mtimeMs;
         const raw = fs.readFileSync(DATA_FILE, 'utf-8');
         this.data = JSON.parse(raw);
       } else {
         this.seedInitialData();
-        this.persist();
+        this.flushSync();
       }
     } catch (err) {
-      console.warn('[DB] Failed to load store.json, using in-memory store:', err);
+      console.warn('[DB] Failed to load store.json, creating initial store:', err);
       this.seedInitialData();
     }
-    this.isLoaded = true;
+    this.rebuildIndexes();
   }
 
   private seedInitialData() {
@@ -248,28 +264,12 @@ class StoreManager {
         originalName: 'NexTask-System-Architecture.pdf',
         fileType: 'pdf',
         mimeType: 'application/pdf',
-        sizeBytes: 1048576 * 2.4, // 2.4 MB
+        sizeBytes: 1048576 * 2.4,
         url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
         folder: 'Documents',
         isFavorite: true,
         isDeleted: false,
         createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-        updatedAt: now,
-      },
-      {
-        id: 'file_02',
-        userId: demoUserId,
-        projectId: 'proj_02',
-        name: 'Brand-Styleguide-v1.png',
-        originalName: 'Brand-Styleguide-v1.png',
-        fileType: 'image',
-        mimeType: 'image/png',
-        sizeBytes: 1048576 * 1.8,
-        url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
-        folder: 'Assets',
-        isFavorite: false,
-        isDeleted: false,
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
         updatedAt: now,
       },
     ];
@@ -284,24 +284,6 @@ class StoreManager {
         entityTitle: 'Finalize JWT and Resend OTP auth service',
         timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
       },
-      {
-        id: 'act_02',
-        userId: demoUserId,
-        action: 'Created note',
-        entityType: 'note',
-        entityId: 'note_02',
-        entityTitle: 'Design Guidelines: Linear & Notion Aesthetic',
-        timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-      },
-      {
-        id: 'act_03',
-        userId: demoUserId,
-        action: 'Uploaded file',
-        entityType: 'file',
-        entityId: 'file_01',
-        entityTitle: 'NexTask-System-Architecture.pdf',
-        timestamp: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
-      },
     ];
 
     this.data = {
@@ -314,24 +296,148 @@ class StoreManager {
     };
   }
 
+  // Rebuild $O(1)$ Hash Maps for lightning-fast queries under massive traffic
+  public rebuildIndexes() {
+    this.userById.clear();
+    this.userByEmail.clear();
+    for (const u of this.data.users) {
+      this.userById.set(u.id, u);
+      this.userByEmail.set(u.email.toLowerCase(), u);
+    }
+
+    this.taskById.clear();
+    for (const t of this.data.tasks) {
+      this.taskById.set(t.id, t);
+    }
+
+    this.projectById.clear();
+    for (const p of this.data.projects) {
+      this.projectById.set(p.id, p);
+    }
+
+    this.noteById.clear();
+    for (const n of this.data.notes) {
+      this.noteById.set(n.id, n);
+    }
+
+    this.fileById.clear();
+    for (const f of this.data.files) {
+      this.fileById.set(f.id, f);
+    }
+  }
+
+  // Non-blocking, debounced atomic persistence with .tmp swap
   public persist() {
+    this.rebuildIndexes();
+
+    if (this.persistTimeout) {
+      clearTimeout(this.persistTimeout);
+    }
+
+    // Debounce disk I/O by 50ms to bundle concurrent writes
+    this.persistTimeout = setTimeout(() => {
+      this.flushSync();
+    }, 50);
+  }
+
+  // Atomic write to prevent partial file corruption under high traffic
+  public flushSync() {
+    if (this.isPersisting) return;
+    this.isPersisting = true;
+
     try {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
-      fs.writeFileSync(DATA_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
+      const serialized = JSON.stringify(this.data, null, 2);
+      fs.writeFileSync(TEMP_FILE, serialized, 'utf-8');
+      fs.renameSync(TEMP_FILE, DATA_FILE);
+      this.lastMtime = fs.statSync(DATA_FILE).mtimeMs;
     } catch (err) {
-      console.error('[DB] Error writing to store.json:', err);
+      console.error('[DB] Atomic flush error:', err);
+    } finally {
+      this.isPersisting = false;
     }
   }
 
-  // Getter for raw data tables
-  public get users() { return this.data.users; }
-  public get tasks() { return this.data.tasks; }
-  public get projects() { return this.data.projects; }
-  public get notes() { return this.data.notes; }
-  public get files() { return this.data.files; }
-  public get activities() { return this.data.activities; }
+  // Hot-reload if another process/container modified the file
+  private checkHotReload() {
+    try {
+      if (fs.existsSync(DATA_FILE)) {
+        const stats = fs.statSync(DATA_FILE);
+        if (stats.mtimeMs > this.lastMtime) {
+          const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+          this.data = JSON.parse(raw);
+          this.lastMtime = stats.mtimeMs;
+          this.rebuildIndexes();
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // High-performance $O(1)$ fast lookups
+  public getUserById(id: string): User | undefined {
+    this.checkHotReload();
+    return this.userById.get(id);
+  }
+
+  public getUserByEmail(email: string): User | undefined {
+    this.checkHotReload();
+    return this.userByEmail.get(email.trim().toLowerCase());
+  }
+
+  public getTaskById(id: string): Task | undefined {
+    this.checkHotReload();
+    return this.taskById.get(id);
+  }
+
+  public getProjectById(id: string): Project | undefined {
+    this.checkHotReload();
+    return this.projectById.get(id);
+  }
+
+  public getNoteById(id: string): Note | undefined {
+    this.checkHotReload();
+    return this.noteById.get(id);
+  }
+
+  public getFileById(id: string): FileItem | undefined {
+    this.checkHotReload();
+    return this.fileById.get(id);
+  }
+
+  // Getters with hot-reload check
+  public get users() {
+    this.checkHotReload();
+    return this.data.users;
+  }
+
+  public get tasks() {
+    this.checkHotReload();
+    return this.data.tasks;
+  }
+
+  public get projects() {
+    this.checkHotReload();
+    return this.data.projects;
+  }
+
+  public get notes() {
+    this.checkHotReload();
+    return this.data.notes;
+  }
+
+  public get files() {
+    this.checkHotReload();
+    return this.data.files;
+  }
+
+  public get activities() {
+    this.checkHotReload();
+    return this.data.activities;
+  }
 
   // Activity logger helper
   public logActivity(userId: string, action: string, entityType: Activity['entityType'], entityId: string, entityTitle: string) {
@@ -345,8 +451,8 @@ class StoreManager {
       timestamp: new Date().toISOString(),
     };
     this.data.activities.unshift(act);
-    if (this.data.activities.length > 100) {
-      this.data.activities = this.data.activities.slice(0, 100);
+    if (this.data.activities.length > 200) {
+      this.data.activities = this.data.activities.slice(0, 200);
     }
     this.persist();
   }
