@@ -45,7 +45,8 @@ function MainApp() {
 
   useEffect(() => {
     fetchSharedProjects();
-  }, [isAuthenticated]);
+    setSelectedTask(null);
+  }, [isAuthenticated, user?.id]);
 
   // Global keyboard shortcuts (Ctrl+K or Cmd+K)
   useEffect(() => {

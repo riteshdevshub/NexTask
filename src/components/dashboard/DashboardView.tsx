@@ -39,7 +39,7 @@ export function DashboardView({
   onSelectTask,
   onSelectProject,
 }: DashboardViewProps) {
-  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, login } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [quickTitle, setQuickTitle] = useState('');
@@ -68,7 +68,7 @@ export function DashboardView({
     } else if (!authLoading) {
       setLoading(false);
     }
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, user?.id, authLoading]);
 
   const handleToggleTask = async (task: Task) => {
     const nextStatus = task.status === 'completed' ? 'todo' : 'completed';

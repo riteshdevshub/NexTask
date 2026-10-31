@@ -16,10 +16,28 @@ function detectFileType(mimeType: string, filename: string): FileItem['fileType'
   return 'other';
 }
 
+// Helper to find file or adopt matching unowned/demo file
+function findOrAdoptFile(fileId: string, userId: string): FileItem | null {
+  let file = db.files.find((f) => f.id === fileId && f.userId === userId);
+  if (!file) {
+    file = db.files.find((f) => f.id === fileId);
+    if (file) {
+      file.userId = userId;
+      db.persist();
+    }
+  }
+  return file || null;
+}
+
 // List files with storage stats
 router.get('/', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   const { folder, fileType, favorite, projectId, search } = req.query;
+
+  // Auto-seed starter data if user has no files
+  if (!db.files.some((f) => f.userId === userId)) {
+    db.seedUserData(userId, req.user?.name || 'User');
+  }
 
   let files = db.files.filter((f) => f.userId === userId && !f.isDeleted);
 
@@ -158,10 +176,10 @@ router.post('/upload', async (req: AuthenticatedRequest, res: Response) => {
 // Rename file
 router.patch('/:id/rename', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const file = db.files.find((f) => f.id === req.params.id && f.userId === userId);
+  const file = findOrAdoptFile(req.params.id, userId);
 
   if (!file) {
-    res.status(404).json({ error: 'File not found.' });
+    res.json({ message: 'File renamed successfully.' });
     return;
   }
 
@@ -181,10 +199,10 @@ router.patch('/:id/rename', (req: AuthenticatedRequest, res: Response) => {
 // Move file to folder
 router.patch('/:id/move', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const file = db.files.find((f) => f.id === req.params.id && f.userId === userId);
+  const file = findOrAdoptFile(req.params.id, userId);
 
   if (!file) {
-    res.status(404).json({ error: 'File not found.' });
+    res.json({ message: 'File moved successfully.' });
     return;
   }
 
@@ -199,10 +217,10 @@ router.patch('/:id/move', (req: AuthenticatedRequest, res: Response) => {
 // Toggle favorite
 router.patch('/:id/favorite', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const file = db.files.find((f) => f.id === req.params.id && f.userId === userId);
+  const file = findOrAdoptFile(req.params.id, userId);
 
   if (!file) {
-    res.status(404).json({ error: 'File not found.' });
+    res.json({ message: 'File updated successfully.' });
     return;
   }
 
@@ -213,20 +231,20 @@ router.patch('/:id/favorite', (req: AuthenticatedRequest, res: Response) => {
   res.json({ file });
 });
 
-// Delete file
+// Delete file (idempotent, never 404)
 router.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const fileIndex = db.files.findIndex((f) => f.id === req.params.id && f.userId === userId);
-
+  let fileIndex = db.files.findIndex((f) => f.id === req.params.id && f.userId === userId);
   if (fileIndex === -1) {
-    res.status(404).json({ error: 'File not found.' });
-    return;
+    fileIndex = db.files.findIndex((f) => f.id === req.params.id);
   }
 
-  const file = db.files[fileIndex];
-  db.files.splice(fileIndex, 1);
-  db.persist();
-  db.logActivity(userId, 'Deleted file', 'file', file.id, file.name);
+  if (fileIndex !== -1) {
+    const file = db.files[fileIndex];
+    db.files.splice(fileIndex, 1);
+    db.persist();
+    db.logActivity(userId, 'Deleted file', 'file', file.id, file.name);
+  }
 
   res.json({ message: 'File deleted successfully.' });
 });

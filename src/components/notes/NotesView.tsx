@@ -24,7 +24,7 @@ import { useToast } from '../../context/ToastContext.js';
 import { useAuth } from '../../context/AuthContext.js';
 
 export function NotesView() {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
   const [activeNote, setActiveNote] = useState<Note | null>(null);
@@ -57,8 +57,10 @@ export function NotesView() {
       setNotes(res.notes || []);
       setFolders(res.folders || []);
 
-      if (res.notes && res.notes.length > 0 && !activeNote) {
+      if (res.notes && res.notes.length > 0) {
         selectNote(res.notes[0]);
+      } else {
+        setActiveNote(null);
       }
     } catch {
       // Quietly handle
@@ -73,7 +75,7 @@ export function NotesView() {
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated, selectedFolder, filterFavorites, search]);
+  }, [isAuthenticated, user?.id, selectedFolder, filterFavorites, search]);
 
   const selectNote = (note: Note) => {
     setActiveNote(note);

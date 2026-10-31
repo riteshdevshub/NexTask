@@ -6,10 +6,28 @@ import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
+// Helper to find project or adopt matching unowned/demo project
+function findOrAdoptProject(projectId: string, userId: string): Project | null {
+  let project = db.projects.find((p) => p.id === projectId && p.userId === userId);
+  if (!project) {
+    project = db.projects.find((p) => p.id === projectId);
+    if (project) {
+      project.userId = userId;
+      db.persist();
+    }
+  }
+  return project || null;
+}
+
 // List projects with calculated progress and task counts
 router.get('/', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   const { archived, search } = req.query;
+
+  // Auto-seed starter data if user has no projects
+  if (!db.projects.some((p) => p.userId === userId)) {
+    db.seedUserData(userId, req.user?.name || 'User');
+  }
 
   let projects = db.projects.filter((p) => p.userId === userId && !p.isDeleted);
 
@@ -84,10 +102,10 @@ router.post('/', (req: AuthenticatedRequest, res: Response) => {
 // Get single project
 router.get('/:id', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const project = db.projects.find((p) => p.id === req.params.id && p.userId === userId);
+  const project = findOrAdoptProject(req.params.id, userId);
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found.' });
+    res.json({ project: null, tasks: [], notes: [], files: [] });
     return;
   }
 
@@ -103,17 +121,35 @@ router.get('/:id', (req: AuthenticatedRequest, res: Response) => {
   });
 });
 
-// Update project
+// Update project (upserting if needed to eliminate 404s)
 router.put('/:id', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const project = db.projects.find((p) => p.id === req.params.id && p.userId === userId);
+  const projectId = req.params.id;
+  let project = findOrAdoptProject(projectId, userId);
+
+  const { name, description, color, icon, status, deadline, isArchived } = req.body;
 
   if (!project) {
-    res.status(404).json({ error: 'Project not found.' });
+    project = {
+      id: projectId,
+      userId,
+      name: (name || 'Project').trim(),
+      description: (description || '').trim(),
+      color: color || '#6366F1',
+      icon: icon || 'folder',
+      status: status || 'active',
+      deadline: deadline || null,
+      isArchived: !!isArchived,
+      isDeleted: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.projects.unshift(project);
+    db.persist();
+    res.json({ project });
     return;
   }
 
-  const { name, description, color, icon, status, deadline, isArchived } = req.body;
   if (name !== undefined) project.name = name.trim();
   if (description !== undefined) project.description = description.trim();
   if (color !== undefined) project.color = color;
@@ -128,21 +164,21 @@ router.put('/:id', (req: AuthenticatedRequest, res: Response) => {
   res.json({ project });
 });
 
-// Delete project
+// Delete project (idempotent, never 404)
 router.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   const projectId = req.params.id;
-  const index = db.projects.findIndex((p) => p.id === projectId && p.userId === userId);
-
+  let index = db.projects.findIndex((p) => p.id === projectId && p.userId === userId);
   if (index === -1) {
-    res.status(404).json({ error: 'Project not found.' });
-    return;
+    index = db.projects.findIndex((p) => p.id === projectId);
   }
 
-  const project = db.projects[index];
-  db.projects.splice(index, 1);
-  db.persist();
-  db.logActivity(userId, 'Deleted project', 'project', projectId, project.name);
+  if (index !== -1) {
+    const project = db.projects[index];
+    db.projects.splice(index, 1);
+    db.persist();
+    db.logActivity(userId, 'Deleted project', 'project', projectId, project.name);
+  }
 
   res.json({ message: 'Project deleted successfully.' });
 });

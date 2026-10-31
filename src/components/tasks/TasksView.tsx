@@ -37,7 +37,7 @@ export function TasksView({
   selectedTask,
   onClearSelectedTask,
 }: TasksViewProps) {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('kanban');
@@ -88,7 +88,7 @@ export function TasksView({
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated, statusFilter, priorityFilter, projectFilter, search]);
+  }, [isAuthenticated, user?.id, statusFilter, priorityFilter, projectFilter, search]);
 
   useEffect(() => {
     if (selectedTask) {

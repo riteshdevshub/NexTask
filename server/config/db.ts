@@ -456,6 +456,189 @@ class StoreManager {
     }
     this.persist();
   }
+
+  // Seed initial starter data for any new or existing user so their workspace is rich and never empty
+  public seedUserData(userId: string, userName = 'User') {
+    this.checkHotReload();
+    const hasProjects = this.data.projects.some((p) => p.userId === userId);
+    if (hasProjects) return;
+
+    const now = new Date().toISOString();
+    const p1Id = `proj_${userId}_1`;
+    const p2Id = `proj_${userId}_2`;
+
+    const starterProjects: Project[] = [
+      {
+        id: p1Id,
+        userId,
+        name: 'Workspace & Personal Goals',
+        description: 'Core tasks, personal milestones, and daily focus items.',
+        color: '#6366F1',
+        icon: 'rocket',
+        status: 'active',
+        deadline: new Date(Date.now() + 7 * 86400000).toISOString(),
+        isArchived: false,
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: p2Id,
+        userId,
+        name: 'High-Impact Initiatives',
+        description: 'Strategic roadmap, team deliverables, and quarterly milestones.',
+        color: '#10B981',
+        icon: 'briefcase',
+        status: 'active',
+        deadline: new Date(Date.now() + 21 * 86400000).toISOString(),
+        isArchived: false,
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+
+    const starterTasks: Task[] = [
+      {
+        id: `task_${userId}_1`,
+        userId,
+        projectId: p1Id,
+        title: `Welcome to NexTask, ${userName}!`,
+        description: 'Take a tour of your new productivity command center.',
+        status: 'completed',
+        priority: 'high',
+        dueDate: now,
+        category: 'Getting Started',
+        tags: ['Welcome', 'Guide'],
+        subtasks: [
+          { id: `sub_${userId}_1`, title: 'Review today agenda on the Dashboard', completed: true },
+          { id: `sub_${userId}_2`, title: 'Try switching between List, Kanban, and Calendar views', completed: true },
+          { id: `sub_${userId}_3`, title: 'Use Quick-Add (Cmd/Ctrl + K) for rapid task entry', completed: true },
+        ],
+        timeSpentMinutes: 15,
+        isArchived: false,
+        isDeleted: false,
+        order: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `task_${userId}_2`,
+        userId,
+        projectId: p1Id,
+        title: 'Organize your sprint backlog on the Kanban Board',
+        description: 'Drag and drop tasks between Todo, In Progress, Review, and Completed columns.',
+        status: 'in_progress',
+        priority: 'urgent',
+        dueDate: new Date(Date.now() + 86400000 * 2).toISOString(),
+        category: 'Workflow',
+        tags: ['Kanban', 'Sprint'],
+        subtasks: [
+          { id: `sub_${userId}_4`, title: 'Click and drag any card to update its status instantly', completed: true },
+          { id: `sub_${userId}_5`, title: 'Log active working minutes with the built-in timer', completed: false },
+        ],
+        timeSpentMinutes: 30,
+        isArchived: false,
+        isDeleted: false,
+        order: 2,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `task_${userId}_3`,
+        userId,
+        projectId: p2Id,
+        title: 'Draft documentation and notes in the Notes workspace',
+        description: 'Use distraction-free rich-text editing with auto-save, tags, and folders.',
+        status: 'todo',
+        priority: 'medium',
+        dueDate: new Date(Date.now() + 86400000 * 4).toISOString(),
+        category: 'Documentation',
+        tags: ['Notes', 'Docs'],
+        subtasks: [
+          { id: `sub_${userId}_6`, title: 'Pin essential guidelines to the top of your sidebar', completed: false },
+          { id: `sub_${userId}_7`, title: 'Tag notes by subject for instant multi-filter search', completed: false },
+        ],
+        timeSpentMinutes: 0,
+        isArchived: false,
+        isDeleted: false,
+        order: 3,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `task_${userId}_4`,
+        userId,
+        projectId: p2Id,
+        title: 'Upload attachments and project files to the Vault',
+        description: 'Upload PDF, images, sheets, and documents with instant modal preview and tags.',
+        status: 'todo',
+        priority: 'low',
+        dueDate: new Date(Date.now() + 86400000 * 6).toISOString(),
+        category: 'Assets',
+        tags: ['Files', 'Storage'],
+        subtasks: [
+          { id: `sub_${userId}_8`, title: 'Drag & drop files directly onto the Files page', completed: false },
+          { id: `sub_${userId}_9`, title: 'Mark key documents as favorites for one-click access', completed: false },
+        ],
+        timeSpentMinutes: 0,
+        isArchived: false,
+        isDeleted: false,
+        order: 4,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+
+    const starterNotes: Note[] = [
+      {
+        id: `note_${userId}_1`,
+        userId,
+        title: 'Welcome to NexTask: Workspace Guide',
+        content: `### Welcome to your NexTask Workspace 🚀
+
+NexTask brings your daily focus into alignment:
+* **Tasks & Sprints:** Toggle between List, Kanban, and Calendar views to stay ahead of deadlines.
+* **Projects & Rooms:** Group deliverables into milestones and track progress meters automatically.
+* **Notes & Docs:** Capture fleeting thoughts and team documentation with real-time auto-saving.
+* **File Vault:** Store project assets with instant preview and organization.
+
+*Tip: Press **Ctrl+K** or **Cmd+K** anywhere to open the Global Quick-Search modal.*`,
+        folder: 'Guides',
+        tags: ['Onboarding', 'Tips'],
+        isPinned: true,
+        isFavorite: true,
+        isArchived: false,
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+
+    const starterFiles: FileItem[] = [
+      {
+        id: `file_${userId}_1`,
+        userId,
+        name: 'NexTask_Quick_Reference_Guide.pdf',
+        originalName: 'NexTask_Quick_Reference_Guide.pdf',
+        fileType: 'pdf',
+        folder: 'Documents',
+        sizeBytes: 184500,
+        mimeType: 'application/pdf',
+        url: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=800&q=80',
+        isFavorite: true,
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+
+    this.data.projects.push(...starterProjects);
+    this.data.tasks.push(...starterTasks);
+    this.data.notes.push(...starterNotes);
+    this.data.files.push(...starterFiles);
+    this.persist();
+  }
 }
 
 export const db = new StoreManager();

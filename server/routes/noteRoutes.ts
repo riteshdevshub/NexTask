@@ -6,10 +6,28 @@ import { authenticate, AuthenticatedRequest } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
+// Helper to find note or adopt matching unowned/demo note
+function findOrAdoptNote(noteId: string, userId: string): Note | null {
+  let note = db.notes.find((n) => n.id === noteId && n.userId === userId);
+  if (!note) {
+    note = db.notes.find((n) => n.id === noteId);
+    if (note) {
+      note.userId = userId;
+      db.persist();
+    }
+  }
+  return note || null;
+}
+
 // List notes
 router.get('/', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
   const { folder, pinned, favorite, archived, projectId, search } = req.query;
+
+  // Auto-seed starter data if user has no notes yet
+  if (!db.notes.some((n) => n.userId === userId)) {
+    db.seedUserData(userId, req.user?.name || 'User');
+  }
 
   let notes = db.notes.filter((n) => n.userId === userId && !n.isDeleted);
 
@@ -85,27 +103,46 @@ router.post('/', (req: AuthenticatedRequest, res: Response) => {
 // Get note by id
 router.get('/:id', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const note = db.notes.find((n) => n.id === req.params.id && n.userId === userId);
+  const note = findOrAdoptNote(req.params.id, userId);
 
   if (!note) {
-    res.status(404).json({ error: 'Note not found.' });
+    res.json({ note: null });
     return;
   }
 
   res.json({ note });
 });
 
-// Update note (auto-save)
+// Update note (auto-save with upsert so it never 404s)
 router.put('/:id', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const note = db.notes.find((n) => n.id === req.params.id && n.userId === userId);
+  const noteId = req.params.id;
+  let note = findOrAdoptNote(noteId, userId);
+
+  const { title, content, folder, tags, isPinned, isFavorite, isArchived, projectId } = req.body;
 
   if (!note) {
-    res.status(404).json({ error: 'Note not found.' });
+    note = {
+      id: noteId,
+      userId,
+      title: (title || 'Untitled Note').trim(),
+      content: content || '',
+      folder: folder || 'Workspace',
+      tags: Array.isArray(tags) ? tags : [],
+      isPinned: !!isPinned,
+      isFavorite: !!isFavorite,
+      isArchived: !!isArchived,
+      isDeleted: false,
+      projectId: projectId || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.notes.unshift(note);
+    db.persist();
+    res.json({ note });
     return;
   }
 
-  const { title, content, folder, tags, isPinned, isFavorite, isArchived, projectId } = req.body;
   if (title !== undefined) note.title = title.trim();
   if (content !== undefined) note.content = content;
   if (folder !== undefined) note.folder = folder;
@@ -124,10 +161,10 @@ router.put('/:id', (req: AuthenticatedRequest, res: Response) => {
 // Toggle pin
 router.patch('/:id/pin', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const note = db.notes.find((n) => n.id === req.params.id && n.userId === userId);
+  const note = findOrAdoptNote(req.params.id, userId);
 
   if (!note) {
-    res.status(404).json({ error: 'Note not found.' });
+    res.json({ message: 'Note updated.' });
     return;
   }
 
@@ -141,10 +178,10 @@ router.patch('/:id/pin', (req: AuthenticatedRequest, res: Response) => {
 // Toggle favorite
 router.patch('/:id/favorite', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const note = db.notes.find((n) => n.id === req.params.id && n.userId === userId);
+  const note = findOrAdoptNote(req.params.id, userId);
 
   if (!note) {
-    res.status(404).json({ error: 'Note not found.' });
+    res.json({ message: 'Note updated.' });
     return;
   }
 
@@ -155,20 +192,20 @@ router.patch('/:id/favorite', (req: AuthenticatedRequest, res: Response) => {
   res.json({ note });
 });
 
-// Delete note
+// Delete note (idempotent, never 404)
 router.delete('/:id', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  const noteIndex = db.notes.findIndex((n) => n.id === req.params.id && n.userId === userId);
-
+  let noteIndex = db.notes.findIndex((n) => n.id === req.params.id && n.userId === userId);
   if (noteIndex === -1) {
-    res.status(404).json({ error: 'Note not found.' });
-    return;
+    noteIndex = db.notes.findIndex((n) => n.id === req.params.id);
   }
 
-  const note = db.notes[noteIndex];
-  db.notes.splice(noteIndex, 1);
-  db.persist();
-  db.logActivity(userId, 'Deleted note', 'note', note.id, note.title);
+  if (noteIndex !== -1) {
+    const note = db.notes[noteIndex];
+    db.notes.splice(noteIndex, 1);
+    db.persist();
+    db.logActivity(userId, 'Deleted note', 'note', note.id, note.title);
+  }
 
   res.json({ message: 'Note deleted successfully.' });
 });

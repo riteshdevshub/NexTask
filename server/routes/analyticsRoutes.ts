@@ -9,6 +9,11 @@ router.use(authenticate);
 router.get('/dashboard', (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
 
+  // Auto-seed starter data if user has no tasks yet
+  if (!db.tasks.some((t) => t.userId === userId)) {
+    db.seedUserData(userId, req.user?.name || 'User');
+  }
+
   const tasks = db.tasks.filter((t) => t.userId === userId && !t.isDeleted);
   const activeTasks = tasks.filter((t) => !t.isArchived);
 

@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext.js';
 import { useAuth } from '../../context/AuthContext.js';
 
 export function TrashView() {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [deletedTasks, setDeletedTasks] = useState<Task[]>([]);
   const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
   const [tab, setTab] = useState<'trash' | 'archive'>('trash');
@@ -39,7 +39,7 @@ export function TrashView() {
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
   const handleRestore = async (task: Task) => {
     try {

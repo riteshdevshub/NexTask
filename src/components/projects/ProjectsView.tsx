@@ -25,7 +25,7 @@ interface ProjectsViewProps {
 }
 
 export function ProjectsView({ onRefreshProjects, onOpenTaskModal }: ProjectsViewProps) {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -71,7 +71,7 @@ export function ProjectsView({ onRefreshProjects, onOpenTaskModal }: ProjectsVie
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
   const openCreateModal = () => {
     setEditingProject(null);

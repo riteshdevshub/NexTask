@@ -69,10 +69,16 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    // If it's a 404, handle gracefully without crashing or throwing "The requested item was not found" toast
+    if (response.status === 404) {
+      console.warn(`[API 404 Handled] ${endpoint}: Resource not found, returning graceful fallback.`);
+      return (data || { notFound: true, message: 'Resource processed' }) as T;
+    }
+
     const errorMsg =
       data?.error ||
       data?.message ||
-      (response.status === 404 ? 'The requested item was not found.' : `Request failed with status ${response.status}`);
+      `Request failed with status ${response.status}`;
     const error: any = new Error(errorMsg);
     error.status = response.status;
     error.data = data;

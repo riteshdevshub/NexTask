@@ -29,7 +29,7 @@ import { useToast } from '../../context/ToastContext.js';
 import { useAuth } from '../../context/AuthContext.js';
 
 export function AnalyticsView() {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const { success, error } = useToast();
@@ -54,7 +54,7 @@ export function AnalyticsView() {
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
   const handleExport = (format: 'csv' | 'json') => {
     window.open(`/api/analytics/export?format=${format}`, '_blank');

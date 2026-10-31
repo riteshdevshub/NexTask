@@ -34,7 +34,7 @@ interface StorageStats {
 }
 
 export function FilesView() {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
   const [stats, setStats] = useState<StorageStats | null>(null);
@@ -93,7 +93,7 @@ export function FilesView() {
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated, selectedFolder, selectedType, search]);
+  }, [isAuthenticated, user?.id, selectedFolder, selectedType, search]);
 
   const processAndUploadFiles = async (fileList: FileList | File[]) => {
     if (!fileList || fileList.length === 0) return;
