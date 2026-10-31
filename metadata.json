@@ -1,0 +1,6 @@
+{
+  "name": "NexTask",
+  "description": "Plan Smart. Work Better. Premium full-stack productivity platform combining Notion, Todoist, and Google Drive.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
