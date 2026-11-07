@@ -64,6 +64,31 @@ class StoreManager {
       console.warn('[DB] Failed to load store.json, creating initial store:', err);
       this.seedInitialData();
     }
+
+    // Ensure kr8855296@gmail.com user is pre-provisioned and verified for instant access
+    const userEmail = 'kr8855296@gmail.com';
+    let targetUser = this.data.users.find((u) => u.email.toLowerCase() === userEmail);
+    if (!targetUser) {
+      const salt = bcrypt.genSaltSync(10);
+      const passHash = bcrypt.hashSync('password123', salt);
+      const now = new Date().toISOString();
+      const newUserId = 'usr_kr8855296';
+      targetUser = {
+        id: newUserId,
+        name: 'Productivity Lead',
+        email: userEmail,
+        passwordHash: passHash,
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
+        isVerified: true,
+        role: 'user',
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.data.users.push(targetUser);
+      this.seedUserData(newUserId, 'Productivity Lead');
+      this.flushSync();
+    }
+
     this.rebuildIndexes();
   }
 

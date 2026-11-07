@@ -8,11 +8,11 @@ interface AuthContextType {
   isAuthenticated: boolean;
   activeDevOtps: DevOtpItem[];
   login: (email: string, password: string) => Promise<{ requiresOtp?: boolean; email?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ requiresOtp?: boolean; email?: string }>;
-  passwordlessRequest: (email: string) => Promise<{ requiresOtp?: boolean; email?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ requiresOtp?: boolean; email?: string; code?: string }>;
+  passwordlessRequest: (email: string) => Promise<{ requiresOtp?: boolean; email?: string; code?: string }>;
   verifyOtp: (email: string, code: string) => Promise<void>;
-  resendOtp: (email: string, type?: string) => Promise<void>;
-  forgotPassword: (email: string) => Promise<void>;
+  resendOtp: (email: string, type?: string) => Promise<{ code?: string } | void>;
+  forgotPassword: (email: string) => Promise<{ code?: string } | void>;
   resetPassword: (email: string, code: string, newPass: string) => Promise<void>;
   updateProfile: (name: string, avatarUrl?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -111,28 +111,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (name: string, email: string, password: string) => {
     const res = await apiRequest<{
+      accessToken?: string;
+      refreshToken?: string;
+      user?: User;
       requiresOtp?: boolean;
       email?: string;
+      code?: string;
     }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
     });
 
+    if (res.accessToken && res.user) {
+      localStorage.removeItem('nextask_has_logged_out');
+      tokenStorage.setAccess(res.accessToken);
+      if (res.refreshToken) tokenStorage.setRefresh(res.refreshToken);
+      setUser(res.user);
+    }
+
     refreshDevOtps();
-    return { requiresOtp: res.requiresOtp, email: res.email };
+    return { requiresOtp: res.requiresOtp, email: res.email, code: res.code };
   };
 
   const passwordlessRequest = async (email: string) => {
     const res = await apiRequest<{
       requiresOtp?: boolean;
       email?: string;
+      code?: string;
     }>('/api/auth/passwordless-request', {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
 
     refreshDevOtps();
-    return { requiresOtp: res.requiresOtp, email: res.email };
+    return { requiresOtp: res.requiresOtp, email: res.email, code: res.code };
   };
 
   const verifyOtp = async (email: string, code: string) => {
@@ -153,19 +165,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resendOtp = async (email: string, type: string = 'verification') => {
-    await apiRequest('/api/auth/resend-otp', {
+    const res = await apiRequest<{ code?: string; message?: string }>('/api/auth/resend-otp', {
       method: 'POST',
       body: JSON.stringify({ email, type }),
     });
     refreshDevOtps();
+    return res;
   };
 
   const forgotPassword = async (email: string) => {
-    await apiRequest('/api/auth/forgot-password', {
+    const res = await apiRequest<{ code?: string; message?: string }>('/api/auth/forgot-password', {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
     refreshDevOtps();
+    return res;
   };
 
   const resetPassword = async (email: string, code: string, newPass: string) => {

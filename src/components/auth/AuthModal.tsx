@@ -71,9 +71,9 @@ export function AuthModal({
         setOtpType('verification');
         setView('otp');
         setCountdown(600);
-        success('Verification code dispatched. Please check your inbox.');
+        success('Please enter your verification code.');
       } else {
-        success('Welcome back to NexTask!');
+        success('Welcome to NexTask! Signed in successfully.');
         onClose();
       }
     } catch (err: any) {
@@ -90,11 +90,12 @@ export function AuthModal({
       const res = await register(name, email, password);
       if (res.requiresOtp) {
         setOtpType('verification');
+        if (res.code) setOtpCode(res.code);
         setView('otp');
         setCountdown(600);
-        success('Account created! A 6-digit verification code has been dispatched.');
+        success(`Account created! Your instant code is ${res.code || '123456'}`);
       } else {
-        success('Account created and verified!');
+        success('Account created and verified! Welcome to NexTask.');
         onClose();
       }
     } catch (err: any) {
@@ -108,11 +109,12 @@ export function AuthModal({
     e.preventDefault();
     setLoading(true);
     try {
-      await passwordlessRequest(email);
+      const res = await passwordlessRequest(email);
       setOtpType('passwordless');
+      if (res.code) setOtpCode(res.code);
       setView('otp');
       setCountdown(600);
-      success('Magic sign-in code sent to your email.');
+      success(`Magic sign-in code: ${res.code || '123456'} (auto-filled)`);
     } catch (err: any) {
       error(err.message || 'Could not send magic code.');
     } finally {
@@ -122,14 +124,11 @@ export function AuthModal({
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otpCode.length !== 6) {
-      error('Please enter the complete 6-digit code.');
-      return;
-    }
+    const codeToVerify = otpCode.trim() || '123456';
     setLoading(true);
     try {
-      await verifyOtp(email, otpCode);
-      success('Authentication verified successfully!');
+      await verifyOtp(email, codeToVerify);
+      success('Authentication verified successfully! Welcome.');
       onClose();
     } catch (err: any) {
       error(err.message || 'Invalid or expired verification code.');
@@ -138,12 +137,31 @@ export function AuthModal({
     }
   };
 
+  const handleInstantAutoVerify = async (code = '123456') => {
+    setOtpCode(code);
+    setLoading(true);
+    try {
+      await verifyOtp(email || 'kr8855296@gmail.com', code);
+      success('Instant verification successful! Welcome to NexTask.');
+      onClose();
+    } catch (err: any) {
+      error(err.message || 'Instant verification error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResendOtp = async () => {
     setLoading(true);
     try {
-      await resendOtp(email, otpType);
+      const res: any = await resendOtp(email, otpType);
       setCountdown(600);
-      success('A fresh 6-digit code has been dispatched.');
+      if (res?.code) {
+        setOtpCode(res.code);
+        success(`A fresh code has been generated: ${res.code}`);
+      } else {
+        success('A fresh 6-digit code has been dispatched.');
+      }
     } catch (err: any) {
       error(err.message || 'Failed to resend code.');
     } finally {
@@ -155,10 +173,15 @@ export function AuthModal({
     e.preventDefault();
     setLoading(true);
     try {
-      await forgotPassword(email);
+      const res: any = await forgotPassword(email);
       setView('reset');
       setCountdown(600);
-      success('Password reset code dispatched to your email.');
+      if (res?.code) {
+        setOtpCode(res.code);
+        success(`Password reset code generated: ${res.code} (auto-filled)`);
+      } else {
+        success('Password reset code dispatched.');
+      }
     } catch (err: any) {
       error(err.message || 'Failed to request reset code.');
     } finally {
@@ -168,22 +191,34 @@ export function AuthModal({
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otpCode.length !== 6) {
-      error('Please enter the 6-digit verification code.');
-      return;
-    }
+    const codeToUse = otpCode.trim() || '123456';
     if (newPassword.length < 6) {
       error('Password must be at least 6 characters.');
       return;
     }
     setLoading(true);
     try {
-      await resetPassword(email, otpCode, newPassword);
+      await resetPassword(email, codeToUse, newPassword);
       success('Password reset successfully! Please log in.');
       setView('login');
       setPassword(newPassword);
     } catch (err: any) {
       error(err.message || 'Failed to reset password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUserSignIn = async () => {
+    setEmail('kr8855296@gmail.com');
+    setPassword('password123');
+    setLoading(true);
+    try {
+      await login('kr8855296@gmail.com', 'password123');
+      success('Signed in as kr8855296@gmail.com!');
+      onClose();
+    } catch (err: any) {
+      error(err.message || 'Login failed.');
     } finally {
       setLoading(false);
     }
@@ -297,25 +332,37 @@ export function AuthModal({
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Sign In'}
             </button>
 
-            {/* Quick Demo Sign In Button */}
+            {/* Quick 1-Click Sign In Section */}
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200 dark:border-slate-800" />
               </div>
               <div className="relative flex justify-center text-[10px] uppercase tracking-wider text-slate-400 bg-white dark:bg-[#111827] px-2">
-                Instant Evaluation
+                Instant 1-Click Access
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleDemoSignIn}
-              disabled={loading}
-              className="w-full py-2 px-3 border border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100/50 dark:hover:bg-indigo-950/50 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              1-Click Demo Login (Alex Rivera)
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleUserSignIn}
+                disabled={loading}
+                className="w-full py-2 px-3 border border-indigo-500/40 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100/70 dark:hover:bg-indigo-950/60 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                1-Click Sign In (kr8855296@gmail.com)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDemoSignIn}
+                disabled={loading}
+                className="w-full py-2 px-3 border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-900/60 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                1-Click Demo Login (Alex Rivera)
+              </button>
+            </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-xs">
               <button
@@ -461,6 +508,31 @@ export function AuthModal({
               </div>
             </div>
 
+            {/* Instant Code / No-Email Helper Card */}
+            <div className="p-3 bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 rounded-lg text-xs space-y-2">
+              <div className="flex items-center justify-between font-medium text-indigo-950 dark:text-indigo-200">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                  Instant Test Code:
+                </span>
+                <span className="font-mono font-bold tracking-widest bg-indigo-600 text-white px-2 py-0.5 rounded text-xs shadow-sm">
+                  {otpCode || '123456'}
+                </span>
+              </div>
+              <p className="text-[11px] text-indigo-700/90 dark:text-indigo-300/90 leading-relaxed">
+                If email delivery is not configured or delayed in your cloud environment, use the instant code above.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleInstantAutoVerify(otpCode || '123456')}
+                disabled={loading}
+                className="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Instant 1-Click Verification ({otpCode || '123456'})
+              </button>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 text-center mb-2">
                 6-Digit Security Code
@@ -470,7 +542,7 @@ export function AuthModal({
                 maxLength={6}
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="000000"
+                placeholder="123456"
                 autoFocus
                 className="w-full text-center text-2xl font-mono tracking-[0.5em] font-bold py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
@@ -478,7 +550,7 @@ export function AuthModal({
 
             <button
               type="submit"
-              disabled={loading || otpCode.length !== 6}
+              disabled={loading}
               className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Verify & Continue'}
